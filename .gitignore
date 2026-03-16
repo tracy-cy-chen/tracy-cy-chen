@@ -1,0 +1,5 @@
+packages/shared/*.deb
+.vagrant_home/
+vagrant_boxes/**/.vagrant/
+vagrant_boxes/**/id_ed25519*
+vagrant_boxes/**/id_ed25519*.pub

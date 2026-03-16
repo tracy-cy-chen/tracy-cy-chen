@@ -1,0 +1,48 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.hostname = "vm2-ub2204-desktop"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "vm2_ub2204_desktop"
+    vb.gui = true
+    vb.memory = 4096
+    vb.cpus = 2
+    vb.customize ["modifyvm", :id, "--graphicscontroller", "vmsvga"]
+    vb.customize ["modifyvm", :id, "--vram", "128"]
+  end
+
+  config.vm.network "private_network", ip: "192.168.56.12"
+  config.vm.synced_folder "../../testcases" "/opt/testcases", create: true
+  config.vm.synced_folder "../../packages" "/opt/package_cache", create: true
+  config.vm.synced_folder "..", "/vagrant", create: true
+
+  config.vm.provision "shell", inline: <<-'SHELL'
+    set -eux
+
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y ca-certificates curl gpg ubuntu-desktop-minimal
+
+    install -d -m 0755 /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+    . /etc/os-release
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
+
+    apt-get update
+    apt-get install -y selinux-basics selinux-policy-default policycoreutils
+    dpkg -i /opt/package_cache/shared/docker-ce_*_amd64.deb || apt-get install -f -y
+
+    install -d -m 0700 -o vagrant -g vagrant /home/vagrant/.ssh
+    auth=/home/vagrant/.ssh/authorized_keys
+    touch "$auth"
+    for pubkey in /vagrant/vagrant_keys/*.pub; do
+      [ -f "$pubkey" ] || continue
+      key_text=$(cat "$pubkey")
+      grep -qxF "$key_text" "$auth" || echo "$key_text" >> "$auth"
+    done
+    chown vagrant:vagrant "$auth"
+    chmod 0600 "$auth"
+    usermod -aG docker vagrant || true
+  SHELL
+end
